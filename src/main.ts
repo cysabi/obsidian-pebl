@@ -1,112 +1,114 @@
-import { Plugin, ItemView, WorkspaceLeaf, IconName } from "obsidian";
-import { DataArray, Link } from "obsidian-dataview";
-import "./styles.css";
-type Pebl = {
-  file: {
-    link: Link;
-    outlinks: DataArray<Link>;
-    name: string;
-  };
-};
+import {
+  Plugin,
+  FileExplorerView,
+  WorkspaceLeaf,
+  PathVirtualElement,
+} from "obsidian";
+import shimmer from "shimmer";
 
-export class PeblView extends ItemView {
-  constructor(leaf: WorkspaceLeaf) {
-    super(leaf);
-  }
-
-  getIcon() {
-    return "shapes";
-  }
-
-  getViewType() {
-    return "pebl";
-  }
-
-  getDisplayText() {
-    return "Pebl";
-  }
-
-  async onOpen() {
-    const container = this.containerEl.children[1];
-    container.empty();
-    container.createEl("h4", { text: "Example view" });
-  }
-
-  async onClose() {}
-}
-
-export default class PeblPlugin extends Plugin {
+export default class FileExplorerPlusPlugin extends Plugin {
   async onload() {
-    console.log(
-      this.app.workspace.getLeavesOfType("file-explorer")?.first()?.view
+    console.log("load!");
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (path, data, cache) => {
+        this.getFileExplorer()?.requestSort();
+      })
     );
+
+    this.app.workspace.onLayoutReady(() => {
+      this.patchFileExplorer();
+      this.getFileExplorer()?.requestSort();
+    });
+
+    this.app.workspace.on("layout-change", () => {
+      // console.log(
+      //   Object.getPrototypeOf(this.getFileExplorer()).getSortedFolderItems
+      //     ._wrapped
+      // );
+      if (!this.getFileExplorer()?.fileExplorerPlusPatched) {
+        this.patchFileExplorer();
+        this.getFileExplorer()?.requestSort();
+      }
+    });
   }
 
-  async onunload() {}
+  getFileExplorerContainer(): WorkspaceLeaf | undefined {
+    return this.app.workspace.getLeavesOfType("file-explorer")?.first();
+  }
 
-  async activateView() {
-    const { workspace } = this.app;
+  getFileExplorer(): FileExplorerView | undefined {
+    const fileExplorerContainer = this.getFileExplorerContainer();
+    return fileExplorerContainer?.view as FileExplorerView;
+  }
 
-    let leaf: WorkspaceLeaf | null = null;
-    const leaves = workspace.getLeavesOfType("pebl");
+  patchFileExplorer() {
+    const fileExplorer = this.getFileExplorer();
+    if (!fileExplorer) {
+      throw Error("Could not find file explorer");
+    }
+    const workspace = this.app.workspace;
+    const leaf = workspace.getLeaf(true);
+    const activeFile = workspace.getActiveFile();
 
-    if (leaves.length > 0) {
-      // A leaf with our view already exists, use that
-      leaf = leaves[0];
-    } else {
-      // Our view could not be found in the workspace, create a new leaf
-      // in the right sidebar for it
-      leaf = workspace.getRightLeaf(false);
-      await leaf.setViewState({ type: "pebl", active: true });
+    shimmer.wrap(
+      Object.getPrototypeOf(fileExplorer),
+      "getSortedFolderItems",
+      function (old) {
+        return function (...args: any[]) {
+          // sort by mtime
+
+          let sortedChildren: PathVirtualElement[] = old.call(this, ...args);
+
+          // merge folders with files
+          // for now i just want to move each folder below the file in the sort
+          sortedChildren.forEach((child, folderI) => {
+            if (!("collapsible" in child)) return;
+
+            let fileI = sortedChildren.findIndex((c) => {
+              if (!("collapsible" in child)) return;
+              return child.file.name === c.file.basename;
+            });
+
+            if (fileI > -1) {
+              const element = sortedChildren[folderI];
+              console.log(element.file.name);
+              sortedChildren.splice(folderI, 1);
+              sortedChildren.splice(fileI, 0, element);
+            } else {
+              console.log([folderI, fileI], child);
+            }
+
+            return sortedChildren;
+          });
+
+          // activeFile move to the top
+          // activeFile auto expand
+
+          console.log(sortedChildren);
+          return sortedChildren;
+        };
+      }
+    );
+    this.register(() =>
+      shimmer.unwrap(
+        Object.getPrototypeOf(fileExplorer),
+        "getSortedFolderItems"
+      )
+    );
+
+    leaf.detach();
+
+    fileExplorer.fileExplorerPlusPatched = true;
+  }
+
+  onunload() {
+    const fileExplorer = this.getFileExplorer();
+
+    if (!fileExplorer) {
+      return;
     }
 
-    // "Reveal" the leaf in case it is in a collapsed sidebar
-    workspace.revealLeaf(leaf);
+    fileExplorer.requestSort();
+    fileExplorer.fileExplorerPlusPatched = false;
   }
 }
-
-// this.registerEditorExtension(peblStateView);
-// this.registerMarkdownPostProcessor((el, ctx) => {
-//   const tree: (Pebl & { depth: number })[] = [];
-
-//   const dv = getAPI(this.app);
-//   const getSubs = (
-//     pages: DataArray<Record<string, Literal>>,
-//     depth: number = 0
-//   ) => {
-//     const pebls = pages
-//       .where((page) => page["pebl.task"] != undefined)
-//       .file.link.map((link: Link) => dv.page(link)) as DataArray<Pebl>;
-
-//     pebls.forEach((pebl) => {
-//       tree.push({ ...pebl, depth });
-//       getSubs(
-//         pebl.file.outlinks.map((out) => dv.page(out)),
-//         depth + 1
-//       );
-//     });
-//   };
-//   getSubs(dv.pages("outgoing([[]])", ctx.sourcePath));
-
-//   console.log(tree);
-//   console.log(el.findAll(".internal-link"));
-
-//   el.findAll(".internal-link").map((link) => {
-//     const data = tree.find((t) => t.file.name === link.dataset.href);
-//     if (data) {
-//       const wrap = document.createElement("span");
-//       wrap.className = "pebl";
-//       const checkbox = document.createElement("input");
-//       checkbox.type = "checkbox";
-//       checkbox.checked = data.pebltask;
-//       checkbox.onchange = (ev) => {
-//         ev.preventDefault();
-//       };
-
-//       link.parentNode.insertBefore(wrap, link);
-
-//       wrap.appendChild(checkbox);
-//       wrap.appendChild(link);
-//     }
-//   });
-// });
