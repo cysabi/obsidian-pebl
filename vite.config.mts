@@ -1,11 +1,7 @@
 import { defineConfig } from "vite";
-import solid from "vite-plugin-solid";
-import tailwindcss from "@tailwindcss/vite";
 import builtins from "builtin-modules";
 
 export default defineConfig({
-  plugins: [tailwindcss(), solid()],
-  publicDir: `./public`,
   build: {
     target: "es2018",
     cssCodeSplit: true,
