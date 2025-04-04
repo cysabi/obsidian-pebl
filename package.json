@@ -1,20 +1,14 @@
 {
   "devDependencies": {
-    "@codemirror/language": "^6.10.2",
-    "@tailwindcss/vite": "^4.0.0-alpha.19",
-    "@types/luxon": "^3.4.2",
     "@types/node": "^16.11.6",
+    "@types/shimmer": "^1.2.0",
     "builtin-modules": "3.3.0",
-    "obsidian": "^1.6.6",
-    "obsidian-dataview": "^0.5.67",
-    "solid-js": "^1.8.20",
-    "tailwindcss": "^4.0.0-alpha.19",
+    "obsidian": "latest",
+    "obsidian-dataview": "latest",
     "typescript": "4.7.4",
-    "vite": "^5.4.0",
-    "vite-plugin-solid": "^2.10.2"
+    "vite": "^5.4.0"
   },
   "dependencies": {
-    "@types/shimmer": "^1.2.0",
     "shimmer": "^1.2.1",
     "wildcard-match": "^5.1.3"
   }
