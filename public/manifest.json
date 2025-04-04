@@ -1,0 +1,9 @@
+{
+  "id": "pebl",
+  "name": "Pebl",
+  "description": "An empathy-included productivity suite",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "author": "cysabi",
+  "isDesktopOnly": false
+}

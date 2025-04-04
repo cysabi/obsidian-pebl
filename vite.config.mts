@@ -5,6 +5,7 @@ import builtins from "builtin-modules";
 
 export default defineConfig({
   plugins: [tailwindcss(), solid()],
+  publicDir: `./public`,
   build: {
     target: "es2018",
     cssCodeSplit: true,
