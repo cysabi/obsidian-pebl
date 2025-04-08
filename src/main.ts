@@ -1,14 +1,14 @@
 import {
   Plugin,
-  FileExplorerView,
-  WorkspaceLeaf,
-  PathVirtualElement,
+  type FileExplorerView,
+  type WorkspaceLeaf,
+  type PathVirtualElement,
+  type TFile,
 } from "obsidian";
 import shimmer from "shimmer";
 
 export default class FileExplorerPlusPlugin extends Plugin {
   async onload() {
-    console.log("load!");
     this.registerEvent(
       this.app.metadataCache.on("changed", (path, data, cache) => {
         this.getFileExplorer()?.requestSort();
@@ -21,10 +21,6 @@ export default class FileExplorerPlusPlugin extends Plugin {
     });
 
     this.app.workspace.on("layout-change", () => {
-      // console.log(
-      //   Object.getPrototypeOf(this.getFileExplorer()).getSortedFolderItems
-      //     ._wrapped
-      // );
       if (!this.getFileExplorer()?.fileExplorerPlusPatched) {
         this.patchFileExplorer();
         this.getFileExplorer()?.requestSort();
@@ -56,36 +52,39 @@ export default class FileExplorerPlusPlugin extends Plugin {
       function (old) {
         return function (...args: any[]) {
           // sort by mtime
-
-          let sortedChildren: PathVirtualElement[] = old.call(this, ...args);
+          let output: PathVirtualElement[] = old.call(this, ...args);
+          if (output?.[0]?.file?.parent?.parent !== null) return output;
+          console.log(output.length, output);
 
           // merge folders with files
           // for now i just want to move each folder below the file in the sort
-          sortedChildren.forEach((child, folderI) => {
-            if (!("collapsible" in child)) return;
+          const folders = output
+            .map((child) => ("collapsible" in child ? child.file.name : false))
+            .filter((child) => child !== false);
 
-            let fileI = sortedChildren.findIndex((c) => {
-              if (!("collapsible" in child)) return;
-              return child.file.name === c.file.basename;
-            });
+          folders.forEach((folderName) => {
+            const folderI = output.findIndex(
+              (c) => "collapsible" in c && c.file.name === folderName
+            );
+            const fileI = output.findIndex(
+              (c) =>
+                !("collapsible" in c) &&
+                (c.file as TFile).basename === folderName
+            );
 
-            if (fileI > -1) {
-              const element = sortedChildren[folderI];
-              console.log(element.file.name);
-              sortedChildren.splice(folderI, 1);
-              sortedChildren.splice(fileI, 0, element);
+            if (folderI !== -1 && fileI !== -1) {
+              const folder = output[folderI];
+              output.splice(folderI, 1);
+              output.splice(fileI, 0, folder);
             } else {
-              console.log([folderI, fileI], child);
+              console.log({ error: folderName });
             }
-
-            return sortedChildren;
           });
 
           // activeFile move to the top
           // activeFile auto expand
 
-          console.log(sortedChildren);
-          return sortedChildren;
+          return output;
         };
       }
     );
