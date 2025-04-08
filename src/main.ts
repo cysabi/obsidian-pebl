@@ -7,7 +7,7 @@ import {
 } from "obsidian";
 import shimmer from "shimmer";
 
-export default class FileExplorerPlusPlugin extends Plugin {
+export default class Pebl extends Plugin {
   async onload() {
     this.registerEvent(
       this.app.metadataCache.on("changed", (path, data, cache) => {
@@ -21,20 +21,30 @@ export default class FileExplorerPlusPlugin extends Plugin {
     });
 
     this.app.workspace.on("layout-change", () => {
-      if (!this.getFileExplorer()?.fileExplorerPlusPatched) {
+      if (!this.isPatched()) {
         this.patchFileExplorer();
         this.getFileExplorer()?.requestSort();
       }
     });
-  }
 
-  getFileExplorerContainer(): WorkspaceLeaf | undefined {
-    return this.app.workspace.getLeavesOfType("file-explorer")?.first();
+    this.app.workspace.on("file-open", () => {
+      this.getFileExplorer()?.requestSort();
+    });
   }
 
   getFileExplorer(): FileExplorerView | undefined {
-    const fileExplorerContainer = this.getFileExplorerContainer();
+    const fileExplorerContainer = this.app.workspace
+      .getLeavesOfType("file-explorer")
+      ?.first();
     return fileExplorerContainer?.view as FileExplorerView;
+  }
+
+  isPatched(): boolean {
+    const fileExplorer = this.getFileExplorer();
+    if (!fileExplorer) return false;
+
+    const proto = Object.getPrototypeOf(this.getFileExplorer());
+    return proto.getSortedFolderItems.__wrapped;
   }
 
   patchFileExplorer() {
@@ -44,7 +54,6 @@ export default class FileExplorerPlusPlugin extends Plugin {
     }
     const workspace = this.app.workspace;
     const leaf = workspace.getLeaf(true);
-    const activeFile = workspace.getActiveFile();
 
     shimmer.wrap(
       Object.getPrototypeOf(fileExplorer),
@@ -54,7 +63,22 @@ export default class FileExplorerPlusPlugin extends Plugin {
           // sort by mtime
           let output: PathVirtualElement[] = old.call(this, ...args);
           if (output?.[0]?.file?.parent?.parent !== null) return output;
-          console.log(output.length, output);
+          console.log(output);
+
+          // activeFile move to the top
+          // activeFile auto expand
+          const activeFile =
+            this.app.workspace?.activeLeaf?.view?.file?.basename;
+          console.log(activeFile);
+          const activeI = output.findIndex(
+            (c) =>
+              !("collapsible" in c) && (c.file as TFile).basename === activeFile
+          );
+          if (activeI !== -1) {
+            const active = output[activeI];
+            output.splice(activeI, 1);
+            output.splice(0, 0, active);
+          }
 
           // merge folders with files
           // for now i just want to move each folder below the file in the sort
@@ -77,12 +101,9 @@ export default class FileExplorerPlusPlugin extends Plugin {
               output.splice(folderI, 1);
               output.splice(fileI, 0, folder);
             } else {
-              console.log({ error: folderName });
+              console.warn({ ["No file associated with folder"]: folderName });
             }
           });
-
-          // activeFile move to the top
-          // activeFile auto expand
 
           return output;
         };
@@ -96,18 +117,12 @@ export default class FileExplorerPlusPlugin extends Plugin {
     );
 
     leaf.detach();
-
-    fileExplorer.fileExplorerPlusPatched = true;
   }
 
   onunload() {
     const fileExplorer = this.getFileExplorer();
-
-    if (!fileExplorer) {
-      return;
+    if (fileExplorer) {
+      fileExplorer.requestSort();
     }
-
-    fileExplorer.requestSort();
-    fileExplorer.fileExplorerPlusPatched = false;
   }
 }

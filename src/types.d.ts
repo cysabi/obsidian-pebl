@@ -46,7 +46,6 @@ declare module "obsidian" {
   export interface FileExplorerView extends View {
     createFolderDom(folder: TFolder): FileExplorerFolder;
     requestSort(): void;
-    fileExplorerPlusPatched?: boolean;
 
     fileItems: {
       [key: string]: PathVirtualElement;
