@@ -9,6 +9,7 @@
     "vite": "^5.4.0"
   },
   "dependencies": {
+    "obsidian-daily-notes-interface": "^0.9.4",
     "shimmer": "^1.2.1"
   }
 }
